@@ -3,6 +3,7 @@ const video = document.getElementById('video')
 const snap = document.getElementById('snap');
 const canvas = document.getElementById('canvas');
 var context = canvas.getContext('2d');
+const resultsDiv = document.getElementById('results');
 
 /// Adding the Webcam and adding the face detection model
 
@@ -44,9 +45,15 @@ video.addEventListener('play', () => {
 })
 
 // Adding Picture taking feature in the webcam
+function displayResults(message) {
+    resultsDiv.innerHTML = `<p>${message}</p>`;
+}
+
+function appendResult(message){
+    resultsDiv.innerHTML += `<p>${message}</p>`;
+}
 
 snap.addEventListener('click', async() => { 
-    context.drawImage(video, 0, 0, canvas.width, canvas.height);
 
     const detections = await faceapi.detectAllFaces(video, new 
         faceapi.TinyFaceDetectorOptions()).withFaceLandmarks()
@@ -54,11 +61,22 @@ snap.addEventListener('click', async() => {
     
     const faceCount = detections.length;
 
+    resultsDiv.innerHTML = '';
+
     // First checks if there is exaclty one face in the image
     if(faceCount == 0){
         alert("No face detected in the image");
     }else if(faceCount > 1){ 
         alert("Multiple faces detected in the image");
-    } 
+    } else{
+
+        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+        displayResults(`Number of faces detected: ${faceCount}`);
+
+        detections.forEach((det, index) => {
+            const confidence = (det.detection.score * 100).toFixed(2);
+            appendResult(`Face ${index + 1}: Confidence is ${confidence}%`);
+        });
+    }
         
 });
