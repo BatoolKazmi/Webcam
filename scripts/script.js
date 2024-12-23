@@ -2,6 +2,7 @@
 const video = document.getElementById('video')
 const snap = document.getElementById('snap');
 const canvas = document.getElementById('canvas');
+var context = canvas.getContext('2d');
 
 /// Adding the Webcam and adding the face detection model
 
@@ -37,36 +38,27 @@ video.addEventListener('play', () => {
         //Remove unwanted features
         // Can detected landmarks of face and the emotions of the face
         
-        faceapi.draw.drawFaceLandmarks(canvas, resizedDetections)
-        faceapi.draw.drawFaceExpressions(canvas, resizedDetections)
+        //faceapi.draw.drawFaceLandmarks(canvas, resizedDetections)
+        //faceapi.draw.drawFaceExpressions(canvas, resizedDetections)
     }, 100)
 })
 
 // Adding Picture taking feature in the webcam
 
-const constraints = {
-    Audio: false,
-    video: {
-        width: 720, height: 560
-    }
-}
+snap.addEventListener('click', async() => { 
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-async function init(){
-    try{
-        const stream = await navigator.mediaDevices.getUserMedia(constraints);
-        handleSuccess(stream);
-    } catch(e){
-        console.log(e);
-    }
-}
+    const detections = await faceapi.detectAllFaces(video, new 
+        faceapi.TinyFaceDetectorOptions()).withFaceLandmarks()
+        .withFaceExpressions();
+    
+    const faceCount = detections.length;
 
-function handleSuccess(stream){
-    window.stream = stream;
-    video.srcObject = stream;
-}
-
-init();
-var context = canvas.getContext('2d');
-snap.addEventListener('click', function(){ 
-    context.drawImage(video, 0, 0, 720, 560);
+    // First checks if there is exaclty one face in the image
+    if(faceCount == 0){
+        alert("No face detected in the image");
+    }else if(faceCount > 1){ 
+        alert("Multiple faces detected in the image");
+    } 
+        
 });
