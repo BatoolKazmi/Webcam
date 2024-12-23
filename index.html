@@ -10,8 +10,17 @@
   </head>
   <body>
     <h1>This is the Face Detector WebCam</h1>
+    <!-- Stream video via webcam -->
     <div class="video-container">
       <video id="video" width="720" height="560" autoplay muted></video>
     </div>
+
+    <!-- Trigger Canvas Web API -->
+    <div class="controller">
+      <button id="snap">Capture</button>
+    </div>
+
+    <!-- Picture taken during webcam -->
+    <canvas id="canvas" width="720" height="560"></canvas>
   </body>
 </html>
