@@ -27,5 +27,11 @@ video.addEventListener('play', () => {
         const resizedDetections = faceapi.resizeResults(detections, displaySize)
         canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height)
         faceapi.draw.drawDetections(canvas, resizedDetections)
+        
+        //Remove unwanted features
+        // Can detected landmarks of face and the emotions of the face
+        
+        //faceapi.draw.drawFaceLandmarks(canvas, resizedDetections)
+        //faceapi.draw.drawFaceExpressions(canvas, resizedDetections)
     }, 100)
 })
