@@ -10,14 +10,32 @@
   </head>
   <body>
     <h1>This is the Face Detector WebCam</h1>
+    <p>Make sure:</p>
+    <ul>
+      <li>You are in good lighting</li>
+      <li>Your face is clearly visible (fully faced towards the camera)</li>
+      <li>
+        You have removed your glasses or any other accessories from your face
+      </li>
+    </ul>
     <!-- Stream video via webcam -->
     <div class="video-container">
       <video id="video" width="720" height="560" autoplay muted></video>
+      <canvas id="canvas" width="720" height="560"></canvas>
     </div>
 
     <!-- Trigger Canvas Web API -->
     <div class="controller">
       <button id="snap">Capture</button>
+    </div>
+
+    <div id="captured-image-container">
+      <h3>Captured Image</h3>
+      <img
+        id="captured-image"
+        alt="Captured Face"
+        style="display: none; border: 2px solid #ccc"
+      />
     </div>
 
     <!-- Picture taken during webcam -->
