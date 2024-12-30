@@ -45,6 +45,7 @@ video.addEventListener('play', () => {
 
         context.clearRect(0, 0, canvas.width, canvas.height);
 
+
         // Draw Oval Guide
         context.beginPath();
         context.ellipse(
@@ -65,14 +66,20 @@ video.addEventListener('play', () => {
         canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height)
         faceapi.draw.drawDetections(canvas, resizedDetections)
         
-        //Remove unwanted features
-        // Can detected landmarks of face and the emotions of the face
-        //faceapi.draw.drawFaceLandmarks(canvas, resizedDetections)
-        //faceapi.draw.drawFaceExpressions(canvas, resizedDetections)
 
         if (detections.length === 1) {
             const landmarks = detections[0].landmarks;
             const box = detections[0].detection.box;
+
+            // Estimate distance
+            const distance = getDistanceEstimation(box);
+            if (distance < 30) {
+                displayResults("Too close to the camera. Please move your face back.");
+                return;
+            } else if (distance > 100) {
+                displayResults("Too far from the camera. Please move your face closer.");
+                return;
+            }
 
             // Lighting Check
             const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
@@ -166,6 +173,14 @@ function isFaceInOval(box) {
     const xDist = (box.x + box.width / 2 - centerX) / 150; // Normalize to oval width
     const yDist = (box.y + box.height / 2 - centerY) / 200; // Normalize to oval height
     return xDist ** 2 + yDist ** 2 <= 1; // Inside ellipse formula
+}
+
+// Adding Distance Detection
+function getDistanceEstimation(box) {
+    const referenceWidth = 150; // Estimated width of the face at a reference distance
+    const referenceDistance = 150; // Reference distance in cm
+    const distance = (referenceWidth / box.width) * referenceDistance;
+    return distance;
 }
 
 function appendResult(message){
