@@ -1,4 +1,3 @@
-
 const video = document.getElementById('video')
 const snap = document.getElementById('snap');
 const canvas = document.getElementById('canvas');
@@ -7,7 +6,9 @@ const resultsDiv = document.getElementById('results');
 const capturedImage = document.getElementById('captured-image');  // Reference to the image container
 
 let countdownInterval;
-let countdownTime = 5; 
+let countdownTime = 5;
+let allChecksPassed = false;
+let photoTaken = false;
 
 /// Adding the Webcam and adding the face detection model
 
@@ -45,7 +46,6 @@ video.addEventListener('play', () => {
 
         context.clearRect(0, 0, canvas.width, canvas.height);
 
-
         // Draw Oval Guide
         context.beginPath();
         context.ellipse(
@@ -65,8 +65,10 @@ video.addEventListener('play', () => {
         const resizedDetections = faceapi.resizeResults(detections, displaySize)
         canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height)
         faceapi.draw.drawDetections(canvas, resizedDetections)
-        
 
+        let allChecksPassed = false;
+        
+        // If detected 1 face, start the checks
         if (detections.length === 1) {
             const landmarks = detections[0].landmarks;
             const box = detections[0].detection.box;
@@ -75,45 +77,59 @@ video.addEventListener('play', () => {
             const distance = getDistanceEstimation(box);
             if (distance < 30) {
                 displayResults("Too close to the camera. Please move your face back.");
-                return;
             } else if (distance > 100) {
                 displayResults("Too far from the camera. Please move your face closer.");
-                return;
+            } else {
+
+                // Lighting Check
+                const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+                const averageBrightness = getAverageBrightness(imageData.data);
+                if (averageBrightness < 0.5) {
+                    displayResults("Lighting is too dark. Please improve lighting.");
+                } else {
+
+                    // Face Orientation Check
+                    const nose = landmarks.getNose();
+                    const leftEye = landmarks.getLeftEye();
+                    const rightEye = landmarks.getRightEye();
+                    const orientation = getFaceOrientation(nose, leftEye, rightEye);
+
+                    if (orientation !== 'straight') {
+                        displayResults("Please look straight into the camera.");
+                    } else {
+
+                        // Face Position Check
+                        if (!isFaceInOval(box)) {
+                            displayResults("Align your face within the oval.");
+                        } else {
+                            allChecksPassed = true;
+                        }
+                        
+
+                    }
+
+                }
+
             }
-
-            // Lighting Check
-            const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-            const averageBrightness = getAverageBrightness(imageData.data);
-            if (averageBrightness < 0.5) {
-                displayResults("Lighting is too dark. Please improve lighting.");
-                return;
-            }
-
-            // Face Orientation Check
-            const nose = landmarks.getNose();
-            const leftEye = landmarks.getLeftEye();
-            const rightEye = landmarks.getRightEye();
-            const orientation = getFaceOrientation(nose, leftEye, rightEye);
-
-            if (orientation !== 'straight') {
-                displayResults("Please look straight into the camera.");
-                return;
-            }
-
-            // Face Position Check
-            if (!isFaceInOval(box)) {
-                displayResults("Align your face within the oval.");
-                return;
-            }
-
-            // All checks passed, start the countdown
-            displayResults("All checks passed! Starting countdown...");
-            //startCountdown();
 
         } else if (detections.length === 0) {
             displayResults("No face detected.");
         } else {
             displayResults("Multiple faces detected. Ensure only one face is visible.");
+        }
+
+        if (allChecksPassed && !photoTaken) {
+            if (!countdownInterval) {
+                displayResults("All checks passed! Starting countdown...");
+                startCountdown();
+            }
+        } else {
+            if (countdownInterval) {
+                clearInterval(countdownInterval);
+                countdownInterval = null;
+                countdownTime = 5; // Reset countdown
+                displayResults("Countdown stopped due to failed checks.");
+            }
         }
 
     }, 100)
@@ -126,8 +142,7 @@ function displayResults(message) {
 
 // Function to start the countdown
 function startCountdown() {
-    countdownTime = 5; // Reset countdown
-    resultsDiv.innerHTML += `<p>Countdown: ${countdownTime}</p>`;
+    if (countdownInterval) return;
 
     countdownInterval = setInterval(() => {
         countdownTime--;
@@ -135,6 +150,7 @@ function startCountdown() {
         
         if (countdownTime <= 0) {
             clearInterval(countdownInterval);
+            countdownInterval = null; // Reset the interval reference
             takePicture();
         }
     }, 1000);
@@ -142,13 +158,22 @@ function startCountdown() {
 
 // Function to take a picture
 function takePicture() {
-    const context = canvas.getContext('2d');
+    if (photoTaken) return; 
+
     context.drawImage(video, 0, 0, canvas.width, canvas.height);
 
     // Convert canvas to image data URL
     const imageDataURL = canvas.toDataURL("image/png");
     capturedImage.src = imageDataURL;
     capturedImage.style.display = 'block';  // Show the image
+
+    photoTaken = true; // Mark the photo as taken
+
+    setTimeout(() => {
+        photoTaken = false; // Allow checks to restart after a delay
+        countdownTime = 5; // Reset countdown
+    }, 3000); // Adjust delay as needed
+    
 }
 
 function getAverageBrightness(data) {
