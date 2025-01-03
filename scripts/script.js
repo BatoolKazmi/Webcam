@@ -179,24 +179,24 @@ async function takePicture() {
     const regions = getRegionsFromLandmarks(detections.landmarks);
     console.log(regions);
 
-    // Scale coordinates to match the canvas
+    // Scale the new regions to match the canvas
     const scaledRegions = {
-        nose: scaleCoordinates(regions.nose[0], videoWidth, videoHeight, canvasWidth, canvasHeight),
-        leftJaw: scaleCoordinates(regions.leftJaw, videoWidth, videoHeight, canvasWidth, canvasHeight),
-        rightJaw: scaleCoordinates(regions.rightJaw, videoWidth, videoHeight, canvasWidth, canvasHeight),
-        leftEye: scaleCoordinates(regions.leftEye[0], videoWidth, videoHeight, canvasWidth, canvasHeight),
-        rightEye: scaleCoordinates(regions.rightEye[0], videoWidth, videoHeight, canvasWidth, canvasHeight),
+        middleForehead: scaleCoordinates(regions.middleForehead, videoWidth, videoHeight, canvasWidth, canvasHeight),
+        leftUndereye: scaleCoordinates(regions.leftUndereye, videoWidth, videoHeight, canvasWidth, canvasHeight),
+        rightUndereye: scaleCoordinates(regions.rightUndereye, videoWidth, videoHeight, canvasWidth, canvasHeight),
+        leftCheek: scaleCoordinates(regions.leftCheek, videoWidth, videoHeight, canvasWidth, canvasHeight),
+        rightCheek: scaleCoordinates(regions.rightCheek, videoWidth, videoHeight, canvasWidth, canvasHeight),
     };
 
     
     context.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-    // Draw circles on the canvas
-    drawCircle(context, scaledRegions.nose.x, scaledRegions.nose.y, 5); // Nose
-    drawCircle(context, scaledRegions.leftJaw.x, scaledRegions.leftJaw.y, 5); // Left Jaw
-    drawCircle(context, scaledRegions.rightJaw.x, scaledRegions.rightJaw.y, 5); // Right Jaw
-    drawCircle(context, scaledRegions.leftEye.x, scaledRegions.leftEye.y, 5); // Left Eye
-    drawCircle(context, scaledRegions.rightEye.x, scaledRegions.rightEye.y, 5); // Right Eye
+    // Draw circles for the new regions
+    drawCircle(context, scaledRegions.middleForehead.x, scaledRegions.middleForehead.y, 5); // Middle Forehead
+    drawCircle(context, scaledRegions.leftUndereye.x, scaledRegions.leftUndereye.y, 5); // Left Undereye
+    drawCircle(context, scaledRegions.rightUndereye.x, scaledRegions.rightUndereye.y, 5); // Right Undereye
+    drawCircle(context, scaledRegions.leftCheek.x, scaledRegions.leftCheek.y, 5); // Left Cheek
+    drawCircle(context, scaledRegions.rightCheek.x, scaledRegions.rightCheek.y, 5); // Right Cheek
 
     // Convert canvas to image data URL
     const imageDataURL = canvas.toDataURL("image/png");
@@ -223,24 +223,62 @@ function getRegionsFromLandmarks(landmarks) {
 
     if (!landmarks) throw new Error("Landmarks are not defined");
 
-    const nose = landmarks.getNose(); 
-    const leftJaw = landmarks.getJawOutline()[0]; 
-    const rightJaw = landmarks.getJawOutline()[16];
-    const leftEye = landmarks.getLeftEye(); 
-    const rightEye = landmarks.getRightEye(); 
 
-    console.log(nose);
-    console.log(landmarks.getJawOutline());
-    console.log(leftEye);
-    console.log(rightEye);
-
-    return regions = {
-        "nose": nose, 
-        "leftJaw": leftJaw, 
-        "rightJaw": rightJaw, 
-        "leftEye": leftEye, 
-        "rightEye": rightEye
+    // Middle forehead: Use an approximate position between the eyebrows
+    const middleForehead = {
+        x: (landmarks.getLeftEyeBrow()[2].x + landmarks.getRightEyeBrow()[2].x) / 2,
+        y: (landmarks.getLeftEyeBrow()[2].y + landmarks.getRightEyeBrow()[2].y) / 2 - 20, // Offset slightly upwards
     };
+
+    // Left undereye: Use a landmark below the left eye
+    const leftUndereye = {
+        x: landmarks.getLeftEye()[4].x, // Lower edge of the left eye
+        y: landmarks.getLeftEye()[4].y + 13, // Lower edge of the left eye
+    };  
+    // Right undereye: Use a landmark below the right eye
+    const rightUndereye = {
+        x: landmarks.getRightEye()[4].x, // Lower edge of the right eye
+        y: landmarks.getRightEye()[4].y + 13, // Lower edge of the right eye
+    };
+
+    // Left cheek: Approximate position near the left cheekbone
+    const leftCheek = {
+        x: landmarks.getJawOutline()[3].x + 20, // Near the jaw but closer to the cheekbone
+        y: landmarks.getJawOutline()[3].y, // Near the jaw but closer to the cheekbone
+    }
+
+    // Right cheek: Approximate position near the right cheekbone
+    const rightCheek = {
+        x: landmarks.getJawOutline()[13].x - 20, // Near the jaw but closer to the cheekbone
+        y: landmarks.getJawOutline()[13].y, // Near the jaw but closer to the cheekbone
+    }
+
+    return {
+        middleForehead,
+        leftUndereye,
+        rightUndereye,
+        leftCheek,
+        rightCheek,
+    };
+
+    // const nose = landmarks.getNose(); 
+    // const leftJaw = landmarks.getJawOutline()[0]; 
+    // const rightJaw = landmarks.getJawOutline()[16];
+    // const leftEye = landmarks.getLeftEye(); 
+    // const rightEye = landmarks.getRightEye(); 
+
+    // console.log(nose);
+    // console.log(landmarks.getJawOutline());
+    // console.log(leftEye);
+    // console.log(rightEye);
+
+    // return regions = {
+    //     "nose": nose, 
+    //     "leftJaw": leftJaw, 
+    //     "rightJaw": rightJaw, 
+    //     "leftEye": leftEye, 
+    //     "rightEye": rightEye
+    // };
 }
 
 // Function to get the average RGB color of a region
