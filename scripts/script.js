@@ -156,7 +156,7 @@ function startCountdown() {
 function drawCircle(context, x, y, radius) {
     context.beginPath();
     context.arc(x, y, radius, 0, 2 * Math.PI);
-    context.fillStyle = "white"; // Set the circle color
+    context.fillStyle = "rgba(0, 0, 0, 0.0)"; // Set the circle color
     context.fill();
     context.stroke();
 }
@@ -190,6 +190,30 @@ async function takePicture() {
 
     
     context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    // Get the RGB values from the canvas at the landmark positions
+    const middleForeheadColor = getPixelColor(scaledRegions.middleForehead.x, scaledRegions.middleForehead.y);
+    const leftUndereyeColor = getPixelColor(scaledRegions.leftUndereye.x, scaledRegions.leftUndereye.y);
+    const rightUndereyeColor = getPixelColor(scaledRegions.rightUndereye.x, scaledRegions.rightUndereye.y);
+    const leftCheekColor = getPixelColor(scaledRegions.leftCheek.x, scaledRegions.leftCheek.y);
+    const rightCheekColor = getPixelColor(scaledRegions.rightCheek.x, scaledRegions.rightCheek.y);
+
+    console.log("Middle Forehead Color:", middleForeheadColor);
+    console.log("Left Undereye Color:", leftUndereyeColor);
+    console.log("Right Undereye Color:", rightUndereyeColor);
+    console.log("Left Cheek Color:", leftCheekColor);
+    console.log("Right Cheek Color:", rightCheekColor);
+
+    // Log the RGB values as a JSON object in [r, g, b] format
+    const jsonOutput = JSON.stringify({
+        foreheadcolor: [middleForeheadColor.r, middleForeheadColor.g, middleForeheadColor.b],
+        leftCheekColor: [leftCheekColor.r, leftCheekColor.g, leftCheekColor.b],
+        rightCheekColor: [rightCheekColor.r, rightCheekColor.g, rightCheekColor.b],
+        leftundereyecolor: [leftUndereyeColor.r, leftUndereyeColor.g, leftUndereyeColor.b],
+        rightundereyecolor: [rightUndereyeColor.r, rightUndereyeColor.g, rightUndereyeColor.b],
+    }, null, 2);
+
+    console.log(jsonOutput);
 
     // Draw circles for the new regions
     drawCircle(context, scaledRegions.middleForehead.x, scaledRegions.middleForehead.y, 5); // Middle Forehead
@@ -281,40 +305,22 @@ function getRegionsFromLandmarks(landmarks) {
     // };
 }
 
-// Function to get the average RGB color of a region
-function getRegionColor(imageData, region) {
-    if (!region) {
-        console.error("Region is undefined or invalid");
-        return 'rgb(0, 0, 0)';
-    }
+// Function to get the RGB color at a specific (x, y) position on the canvas
+function getPixelColor(x, y) {
+    // Get the image data at the specific (x, y) position
+    const imageData = context.getImageData(x, y, 10, 10);
+    const pixel = imageData.data; // The pixel data is in the 'data' array [R, G, B, A]
 
-    const { left, top, right, bottom } = region;
-    // Ensure left, top, right, and bottom are valid numbers
-    if (left === undefined || top === undefined || right === undefined || bottom === undefined) {
-        console.error("Invalid region coordinates", region);
-        return 'rgb(0, 0, 0)';
-    }
+    console.log(imageData);
+    console.log(pixel);
 
-    // Get the pixel data of the region and calculate average color
-    const regionPixels = imageData.data;
-    let r = 0, g = 0, b = 0;
-    let pixelCount = 0;
 
-    for (let y = top; y < bottom; y++) {
-        for (let x = left; x < right; x++) {
-            const pixelIndex = (y * canvas.width + x) * 4; // 4 for RGBA
-            r += regionPixels[pixelIndex];
-            g += regionPixels[pixelIndex + 1];
-            b += regionPixels[pixelIndex + 2];
-            pixelCount++;
-        }
-    }
-
-    r = Math.floor(r / pixelCount);
-    g = Math.floor(g / pixelCount);
-    b = Math.floor(b / pixelCount);
-
-    return `rgb(${r}, ${g}, ${b})`;
+    // Return the RGB values as an object
+    return {
+        r: pixel[0],
+        g: pixel[1],
+        b: pixel[2]
+    };
 }
 
 
