@@ -1,7 +1,7 @@
 const video = document.getElementById('video')
 const snap = document.getElementById('snap');
 const canvas = document.getElementById('canvas');
-var context = canvas.getContext('2d');
+var context = canvas.getContext('2d', { willReadFrequently: true });
 const resultsDiv = document.getElementById('results');
 const capturedImage = document.getElementById('captured-image');  // Reference to the image container
 
@@ -10,30 +10,29 @@ let countdownTime = 5;
 let allChecksPassed = false;
 let photoTaken = false;
 
-/// Adding the Webcam and adding the face detection model
-
+/// Adding the Webcam and adding the face detection model ///
 Promise.all([
     faceapi.nets.tinyFaceDetector.loadFromUri('/models'),
+    faceapi.nets.ssdMobilenetv1.loadFromUri('/models'),
     faceapi.nets.faceLandmark68Net.loadFromUri('/models'),
-    faceapi.nets.faceRecognitionNet.loadFromUri('/models'),
-    faceapi.nets.faceExpressionNet.loadFromUri('/models'),
-    faceapi.nets.ageGenderNet.loadFromUri('/models') // to check for glasses
+    faceapi.nets.faceRecognitionNet.loadFromUri('/models')
 ]).then(startVideo)
 
-function startVideo(){
-    navigator.getUserMedia(
-        { video: {} },
-        stream => video.srcObject = stream,
-        err => console.error(err)
-    )
-}
 
+async function startVideo() {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: {} });
+    video.srcObject = stream;
+}      
+
+  
+// Attach event listener to start face detection and validation
 video.addEventListener('play', () => { 
-
     const canvas = faceapi.createCanvasFromMedia(video)
     const videoContainer = document.querySelector('.video-container');
-    
     videoContainer.appendChild(canvas)
+
+    // Ensure consistent `willReadFrequently` usage for additional contexts
+    const faceApiContext = canvas.getContext('2d', { willReadFrequently: true });
 
     const displaySize = { width: video.width, height: video.height }
     faceapi.matchDimensions(canvas, displaySize)
@@ -41,10 +40,11 @@ video.addEventListener('play', () => {
     setInterval(async () => {
         const detections = await faceapi
             .detectAllFaces(video, new faceapi.TinyFaceDetectorOptions())
-            .withFaceLandmarks()
-            .withFaceDescriptors();
+            .withFaceLandmarks();
 
+        // Clear previous frames
         context.clearRect(0, 0, canvas.width, canvas.height);
+        faceApiContext.clearRect(0, 0, canvas.width, canvas.height);
 
         // Draw Oval Guide
         context.beginPath();
@@ -63,8 +63,8 @@ video.addEventListener('play', () => {
 
 
         const resizedDetections = faceapi.resizeResults(detections, displaySize)
-        canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height)
         faceapi.draw.drawDetections(canvas, resizedDetections)
+        faceapi.draw.drawFaceLandmarks(canvas, resizedDetections)
 
         let allChecksPassed = false;
         
@@ -88,25 +88,15 @@ video.addEventListener('play', () => {
                     displayResults("Lighting is too dark. Please improve lighting.");
                 } else {
 
-                    // Face Orientation Check
-                    const nose = landmarks.getNose();
-                    const leftEye = landmarks.getLeftEye();
-                    const rightEye = landmarks.getRightEye();
-                    const orientation = getFaceOrientation(nose, leftEye, rightEye);
+                    
 
-                    if (orientation !== 'straight') {
-                        displayResults("Please look straight into the camera.");
+                    // Face Position Check
+                    if (!isFaceInOval(box)) {
+                        displayResults("Align your face within the oval.");
                     } else {
-
-                        // Face Position Check
-                        if (!isFaceInOval(box)) {
-                            displayResults("Align your face within the oval.");
-                        } else {
-                            allChecksPassed = true;
-                        }
-                        
-
+                        allChecksPassed = true;
                     }
+                        
 
                 }
 
@@ -135,9 +125,16 @@ video.addEventListener('play', () => {
     }, 100)
 })
 
-// Adding Picture taking feature in the webcam
+/// FUNCTIONS ///
+
+// Function to display a message in the results div
 function displayResults(message) {
     resultsDiv.innerHTML = `<p>${message}</p>`;
+}
+
+// Function to append a message to the results div
+function appendResult(message){
+    resultsDiv.innerHTML += `<p>${message}</p>`;
 }
 
 // Function to start the countdown
@@ -150,17 +147,56 @@ function startCountdown() {
         
         if (countdownTime <= 0) {
             clearInterval(countdownInterval);
-            countdownInterval = null; // Reset the interval reference
             takePicture();
         }
     }, 1000);
 }
 
-// Function to take a picture
-function takePicture() {
+// Function to draw a circle on the canvas
+function drawCircle(context, x, y, radius) {
+    context.beginPath();
+    context.arc(x, y, radius, 0, 2 * Math.PI);
+    context.fillStyle = "white"; // Set the circle color
+    context.fill();
+    context.stroke();
+}
+
+async function takePicture() {
     if (photoTaken) return; 
 
+    // Detect landmarks for the current frame
+    const detections = await faceapi
+        .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions())
+        .withFaceLandmarks();
+
+    const landmarks = detections.landmarks;
+    const videoWidth = video.videoWidth;
+    const videoHeight = video.videoHeight;
+    const canvasWidth = canvas.width;
+    const canvasHeight = canvas.height;
+
+    // Get regions from landmarks
+    const regions = getRegionsFromLandmarks(detections.landmarks);
+    console.log(regions);
+
+    // Scale coordinates to match the canvas
+    const scaledRegions = {
+        nose: scaleCoordinates(regions.nose[0], videoWidth, videoHeight, canvasWidth, canvasHeight),
+        leftJaw: scaleCoordinates(regions.leftJaw, videoWidth, videoHeight, canvasWidth, canvasHeight),
+        rightJaw: scaleCoordinates(regions.rightJaw, videoWidth, videoHeight, canvasWidth, canvasHeight),
+        leftEye: scaleCoordinates(regions.leftEye[0], videoWidth, videoHeight, canvasWidth, canvasHeight),
+        rightEye: scaleCoordinates(regions.rightEye[0], videoWidth, videoHeight, canvasWidth, canvasHeight),
+    };
+
+    
     context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    // Draw circles on the canvas
+    drawCircle(context, scaledRegions.nose.x, scaledRegions.nose.y, 5); // Nose
+    drawCircle(context, scaledRegions.leftJaw.x, scaledRegions.leftJaw.y, 5); // Left Jaw
+    drawCircle(context, scaledRegions.rightJaw.x, scaledRegions.rightJaw.y, 5); // Right Jaw
+    drawCircle(context, scaledRegions.leftEye.x, scaledRegions.leftEye.y, 5); // Left Eye
+    drawCircle(context, scaledRegions.rightEye.x, scaledRegions.rightEye.y, 5); // Right Eye
 
     // Convert canvas to image data URL
     const imageDataURL = canvas.toDataURL("image/png");
@@ -176,6 +212,77 @@ function takePicture() {
     
 }
 
+function scaleCoordinates(landmarkPoint, videoWidth, videoHeight, canvasWidth, canvasHeight) {
+    return {
+        x: (landmarkPoint.x / videoWidth) * canvasWidth,
+        y: (landmarkPoint.y / videoHeight) * canvasHeight
+    };
+}
+
+function getRegionsFromLandmarks(landmarks) {
+
+    if (!landmarks) throw new Error("Landmarks are not defined");
+
+    const nose = landmarks.getNose(); 
+    const leftJaw = landmarks.getJawOutline()[0]; 
+    const rightJaw = landmarks.getJawOutline()[16];
+    const leftEye = landmarks.getLeftEye(); 
+    const rightEye = landmarks.getRightEye(); 
+
+    console.log(nose);
+    console.log(landmarks.getJawOutline());
+    console.log(leftEye);
+    console.log(rightEye);
+
+    return regions = {
+        "nose": nose, 
+        "leftJaw": leftJaw, 
+        "rightJaw": rightJaw, 
+        "leftEye": leftEye, 
+        "rightEye": rightEye
+    };
+}
+
+// Function to get the average RGB color of a region
+function getRegionColor(imageData, region) {
+    if (!region) {
+        console.error("Region is undefined or invalid");
+        return 'rgb(0, 0, 0)';
+    }
+
+    const { left, top, right, bottom } = region;
+    // Ensure left, top, right, and bottom are valid numbers
+    if (left === undefined || top === undefined || right === undefined || bottom === undefined) {
+        console.error("Invalid region coordinates", region);
+        return 'rgb(0, 0, 0)';
+    }
+
+    // Get the pixel data of the region and calculate average color
+    const regionPixels = imageData.data;
+    let r = 0, g = 0, b = 0;
+    let pixelCount = 0;
+
+    for (let y = top; y < bottom; y++) {
+        for (let x = left; x < right; x++) {
+            const pixelIndex = (y * canvas.width + x) * 4; // 4 for RGBA
+            r += regionPixels[pixelIndex];
+            g += regionPixels[pixelIndex + 1];
+            b += regionPixels[pixelIndex + 2];
+            pixelCount++;
+        }
+    }
+
+    r = Math.floor(r / pixelCount);
+    g = Math.floor(g / pixelCount);
+    b = Math.floor(b / pixelCount);
+
+    return `rgb(${r}, ${g}, ${b})`;
+}
+
+
+
+// FUNCTIONS USED IN THE CHECKS //
+// Function to calculate the average brightness of an image
 function getAverageBrightness(data) {
     let total = 0;
     for (let i = 0; i < data.length; i += 4) {
@@ -184,14 +291,7 @@ function getAverageBrightness(data) {
     return total / (data.length / 4);
 }
 
-function getFaceOrientation(nose, leftEye, rightEye) {
-    const eyeLineSlope = (rightEye[0].y - leftEye[0].y) / (rightEye[0].x - leftEye[0].x);
-    if (Math.abs(eyeLineSlope) < 0.1) {
-        return 'straight';
-    }
-    return 'tilted';
-}
-
+// Function to check if the face is within the oval
 function isFaceInOval(box) {
     const centerX = canvas.width / 2;
     const centerY = canvas.height / 2;
@@ -207,42 +307,4 @@ function getDistanceEstimation(box) {
     const distance = (referenceWidth / box.width) * referenceDistance;
     return distance;
 }
-
-function appendResult(message){
-    resultsDiv.innerHTML += `<p>${message}</p>`;
-}
-
-
-snap.addEventListener('click', async() => { 
-
-    const detections = await faceapi.detectAllFaces(video, new 
-        faceapi.TinyFaceDetectorOptions()).withFaceLandmarks()
-        .withFaceExpressions();
-    
-    const faceCount = detections.length;
-    resultsDiv.innerHTML = '';
-
-    // Reference to the image container
-    const capturedImage = document.getElementById('captured-image');
-
-    // First checks if there is exaclty one face in the image
-    if(faceCount == 0){
-        alert("No face detected in the image");
-        capturedImage.style.display = 'none';
-    }else if(faceCount > 1){ 
-        alert("Multiple faces detected in the image");
-    } else {
-   
-        displayResults(`Number of faces detected: ${faceCount}`);
-        const context = canvas.getContext('2d');
-        context.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-        // Convert canvas to image data URL
-        const imageDataURL = canvas.toDataURL("image/png");
-        capturedImage.src = imageDataURL;
-        capturedImage.style.display = 'block'; // Show the image
-    }
-           
-        
-});
 
